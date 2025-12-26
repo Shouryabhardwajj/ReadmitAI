@@ -1,4 +1,7 @@
 import os
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
 import streamlit as st
 import numpy as np
 import pandas as pd
@@ -150,6 +153,24 @@ else:
     records = fetch_predictions()
     if records:
         rows_as_dicts = [dict(r._mapping) for r in records]
+
+        for row in rows_as_dicts:
+            ts = row.get("created_at")
+            if isinstance(ts, str):
+                dt_utc = datetime.fromisoformat(ts.split("+")[0])
+            elif isinstance(ts, datetime):
+                dt_utc = ts
+            else:
+                dt_utc = None
+
+            if dt_utc is not None:
+                if dt_utc.tzinfo is None:
+                    dt_utc = dt_utc.replace(tzinfo=ZoneInfo("UTC"))
+                dt_ist = dt_utc.astimezone(ZoneInfo("Asia/Kolkata"))
+                row["created_at_ist"] = dt_ist.strftime("%d-%m-%Y %H:%M:%S")
+            else:
+                row["created_at_ist"] = None
+
         df_history = pd.DataFrame(rows_as_dicts)
         st.dataframe(df_history.tail(20), use_container_width=True)
 

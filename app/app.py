@@ -70,6 +70,7 @@ if page == "Predict":
 
     if submit:
         input_df = pd.DataFrame({col: [np.nan] for col in EXPECTED_COLUMNS})
+        input_df = input_df.astype("object")
 
         input_mapping = {
             "age_at_admission": age,
@@ -172,7 +173,7 @@ else:
                 row["created_at_ist"] = None
 
         df_history = pd.DataFrame(rows_as_dicts)
-        st.dataframe(df_history.tail(20), use_container_width=True)
+        st.dataframe(df_history.tail(20), width="stretch")
 
         st.subheader("Prediction distribution")
         preds = [int(row["prediction"]) for row in rows_as_dicts]

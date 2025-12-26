@@ -76,6 +76,7 @@ def save_prediction(data: dict):
                 data,
             )
             conn.commit()
+        print("Saved prediction to database.")
     except Exception as e:
         print(f"Failed to save prediction: {e}")
 

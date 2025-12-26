@@ -151,7 +151,7 @@ else:
     if records:
         rows_as_dicts = [dict(r._mapping) for r in records]
         df_history = pd.DataFrame(rows_as_dicts)
-        st.dataframe(df_history.tail(20), use_container_width=True)
+        st.dataframe(df_history.tail(20), use_container_width=True, hide_index=True)
 
         st.subheader("Prediction distribution")
         preds = [int(row["prediction"]) for row in rows_as_dicts]

@@ -8,8 +8,11 @@ from db import init_db, save_prediction, fetch_predictions
 from pdf_utils import generate_pdf
 from email_utils import send_email
 
-pipeline = joblib.load("../models/best.pkl")
-saved_threshold = joblib.load("../models/threshold.pkl")
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+MODELS_DIR = os.path.join(BASE_DIR, "..", "models")
+
+pipeline = joblib.load(os.path.join(MODELS_DIR, "best.pkl"))
+saved_threshold = joblib.load(os.path.join(MODELS_DIR, "threshold.pkl"))
 
 if isinstance(saved_threshold, (list, tuple, np.ndarray)):
     saved_threshold = float(saved_threshold[0])

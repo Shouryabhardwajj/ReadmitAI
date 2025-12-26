@@ -25,7 +25,34 @@ threshold = float(saved_threshold)
 if threshold > 0.2:
     threshold = 0.05
 
-EXPECTED_COLUMNS = pipeline.named_steps["preprocessing"].feature_names_in_
+EXPECTED_COLUMNS = list(pipeline.named_steps["preprocessing"].feature_names_in_)
+
+NUMERIC_FEATURES = [
+    "age_at_admission",
+    "heart_rate",
+    "systolic_bp",
+    "diastolic_bp",
+    "glucose",
+    "creatinine",
+    "troponin",
+    "los",
+    "respiratory_rate",
+    "spo2",
+    "bun",
+    "hemoglobin",
+    "temperature",
+    "hdl",
+    "log_los",
+]
+
+CATEGORICAL_FEATURES = [
+    "age_group",
+    "gender",
+    "ethnicity",
+    "insurance",
+    "admission_type",
+    "admission_location",
+]
 
 init_db()
 
@@ -33,7 +60,6 @@ st.set_page_config(page_title="Heart Failure Readmission", layout="wide")
 st.sidebar.title("Navigation")
 page = st.sidebar.radio("Go to", ["Predict", "History & Analytics"])
 
-# --------------------------- Predict ---------------------------
 if page == "Predict":
     st.markdown(
         "<h2 style='text-align: center;'>Heart Failure Readmission Prediction</h2>",
@@ -72,7 +98,7 @@ if page == "Predict":
     if submit:
         input_df = pd.DataFrame({col: [np.nan] for col in EXPECTED_COLUMNS})
 
-        input_mapping = {
+        numeric_values = {
             "age_at_admission": age,
             "heart_rate": heart_rate,
             "systolic_bp": systolic_bp,
@@ -88,13 +114,12 @@ if page == "Predict":
             "temperature": temperature,
             "hdl": hdl,
         }
-
-        for col, value in input_mapping.items():
+        for col, value in numeric_values.items():
             if col in EXPECTED_COLUMNS:
-                input_df.loc[0, col] = value
+                input_df.loc[0, col] = float(value)
 
         if "log_los" in EXPECTED_COLUMNS:
-            input_df.loc[0, "log_los"] = np.log1p(los)
+            input_df.loc[0, "log_los"] = float(np.log1p(los))
 
         if "age_group" in EXPECTED_COLUMNS:
             if age <= 40:
@@ -112,47 +137,24 @@ if page == "Predict":
             if col in EXPECTED_COLUMNS:
                 input_df.loc[0, col] = 0.0
 
-        categorical_defaults = {
+        cat_defaults = {
             "gender": "unknown",
             "ethnicity": "unknown",
             "insurance": "unknown",
             "admission_type": "UNKNOWN",
             "admission_location": "UNKNOWN",
         }
-        for col, val in categorical_defaults.items():
+        for col, val in cat_defaults.items():
             if col in EXPECTED_COLUMNS:
                 input_df.loc[0, col] = val
 
-        numeric_feature_like = [
-            "age_at_admission",
-            "heart_rate",
-            "systolic_bp",
-            "diastolic_bp",
-            "glucose",
-            "creatinine",
-            "troponin",
-            "los",
-            "respiratory_rate",
-            "spo2",
-            "bun",
-            "hemoglobin",
-            "temperature",
-            "hdl",
-            "log_los",
-        ]
+        for col in NUMERIC_FEATURES:
+            if col in input_df.columns:
+                input_df[col] = pd.to_numeric(input_df[col], errors="coerce").fillna(0.0)
 
-        num_cols = [c for c in input_df.columns if c in numeric_feature_like]
-        cat_cols = [c for c in input_df.columns if c not in num_cols]
-
-        if num_cols:
-            input_df[num_cols] = input_df[num_cols].astype(float).fillna(0.0)
-        if cat_cols:
-            input_df[cat_cols] = (
-                input_df[cat_cols]
-                .astype("object")
-                .fillna("unknown")
-                .infer_objects(copy=False)
-            )
+        for col in CATEGORICAL_FEATURES:
+            if col in input_df.columns:
+                input_df[col] = input_df[col].astype("object").fillna("unknown")
 
         prob = pipeline.predict_proba(input_df)[0][1]
         pred = int(prob >= threshold)
@@ -175,7 +177,6 @@ if page == "Predict":
         }
         save_prediction(record)
 
-# ---------------------- History & analytics --------------------
 else:
     st.title("Prediction history and analytics")
 

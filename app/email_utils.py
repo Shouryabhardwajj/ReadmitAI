@@ -1,14 +1,5 @@
-import smtplib
-import os
-from email.message import EmailMessage
-from dotenv import load_dotenv
 from datetime import datetime
-from secrets_utils import get_secret
-
-load_dotenv()
-
-EMAIL_FROM = get_secret("EMAIL_FROM")
-EMAIL_PASSWORD = get_secret("EMAIL_PASSWORD")
+from zoneinfo import ZoneInfo  # Python 3.9+ [web:123]
 
 def send_email(to_email, pdf_path, record):
     msg = EmailMessage()
@@ -20,37 +11,42 @@ def send_email(to_email, pdf_path, record):
     raw_created = record.get("created_at")
 
     if isinstance(raw_created, str):
-        dt = datetime.fromisoformat(raw_created.split(".")[0])
+        dt_utc = datetime.fromisoformat(raw_created.replace("Z", ""))
     else:
-        dt = raw_created
-    created_indian = dt.strftime("%d-%m-%Y %H:%M") if dt else "N/A"
+        dt_utc = raw_created
+
+    if dt_utc is not None:
+        if dt_utc.tzinfo is None:
+            dt_utc = dt_utc.replace(tzinfo=ZoneInfo("UTC"))
+        dt_ist = dt_utc.astimezone(ZoneInfo("Asia/Kolkata"))
+        created_str = dt_ist.strftime("%d-%m-%Y %H:%M")
+    else:
+        created_str = "N/A"
 
     prob = float(record.get("probability", 0.0))
-    risk_pct = f"{prob * 100:.1f}%"
+    risk_pct = f"{prob * 100:.6f}%"  # 6 decimal places [web:122][web:134]
 
     html_body = f"""
     <p>Dear Sir/Madam,</p>
 
     <p>
-    Please find attached the latest Heart Failure 30‑Day Readmission Risk Report
-    generated using the patient's discharge-time clinical details.
+    Please find attached the latest <b>Heart Failure 30‑Day Readmission Risk Report</b>.
     </p>
 
     <p><b>Key information:</b><br>
     • <b>Patient ID:</b> {patient_id}<br>
-    • <b>Time of Report Generation:</b> {created_indian}<br>
+    • <b>Time of Report Generation:</b> {created_str}<br>
     • <b>Chances of Readmission:</b> {risk_pct}
     </p>
 
     <p>
     This analysis is intended only as a decision-support tool and should be interpreted
-    along with your clinical assessment, medical history, and local protocols.
-    It does not replace your professional judgement.
+    along with clinical assessment and local protocols.
     </p>
 
     <p>
-    Warm regards,<br>
-    ReadmitAI Team
+    Regards,<br>
+    ReadmitAI
     </p>
     """
 
@@ -61,7 +57,7 @@ def send_email(to_email, pdf_path, record):
             f.read(),
             maintype="application",
             subtype="pdf",
-            filename="heart_failure_readmission_report.pdf"
+            filename="heart_failure_readmission_report.pdf",
         )
 
     with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:

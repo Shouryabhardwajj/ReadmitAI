@@ -17,6 +17,7 @@ saved_threshold = joblib.load(os.path.join(MODELS_DIR, "threshold.pkl"))
 
 if isinstance(saved_threshold, (list, tuple, np.ndarray)):
     saved_threshold = float(saved_threshold[0])
+
 threshold = float(saved_threshold)
 if threshold > 0.2:
     threshold = 0.05
@@ -62,8 +63,7 @@ if page == "Predict":
             temperature = st.number_input("Temperature (°C)", 30.0, 45.0, value=37.0)
             hdl = st.number_input("HDL", 5.0, 150.0, value=45.0)
 
-        email = st.text_input("Email for PDF Report (optional)")
-        submit = st.form_submit_button("🔮 Predict Risk", type="primary")
+        submit = st.form_submit_button("Predict risk")
 
     if submit:
         input_df = pd.DataFrame({col: [np.nan] for col in EXPECTED_COLUMNS})
@@ -128,13 +128,13 @@ if page == "Predict":
 
         col1, col2 = st.columns([3, 1])
         with col1:
-            st.metric("30-Day Readmission Risk", f"{prob:.1%}")
+            st.metric("30‑day readmission risk", f"{prob:.1%}")
         with col2:
-            risk_color = "🟢 Low" if pred == 0 else "🔴 High"
-            st.markdown(f"**{risk_color}**")
+            risk_label_short = "Low" if pred == 0 else "High"
+            st.markdown(f"**{risk_label_short} risk**")
 
-        risk_label = "High Readmission Risk" if pred == 1 else "Low Readmission Risk"
-        st.success(risk_label)
+        full_label = "High readmission risk" if pred == 1 else "Low readmission risk"
+        st.success(full_label)
         st.info(f"Model confidence: **{prob:.3f}**")
 
         record = {
@@ -152,13 +152,8 @@ if page == "Predict":
         }
         save_prediction(record)
 
-        if email:
-            pdf_path = generate_pdf(record)
-            send_email(email, pdf_path, record)
-            st.success("✅ PDF Report emailed!")
-
 else:
-    st.title("📋 Prediction History & Analytics")
+    st.title("Prediction history and analytics")
 
     records = fetch_predictions()
     if records:
@@ -166,27 +161,27 @@ else:
         df_history = pd.DataFrame(rows_as_dicts)
         st.dataframe(df_history.tail(20), use_container_width=True)
 
-        st.subheader("Prediction Distribution")
+        st.subheader("Prediction distribution")
         preds = [int(row["prediction"]) for row in rows_as_dicts]
         fig, ax = plt.subplots()
-        ax.hist(preds, bins=[-0.5, 0.5, 1.5], rwidth=0.8, color=["green", "red"])
+        ax.hist(preds, bins=[-0.5, 0.5, 1.5], rwidth=0.8, color="steelblue")
         ax.set_xticks([0, 1])
-        ax.set_xticklabels(["Low Risk", "High Risk"])
+        ax.set_xticklabels(["Low risk", "High risk"])
         ax.set_xlabel("Prediction")
         ax.set_ylabel("Count")
         st.pyplot(fig)
 
-        st.subheader("📧 Send PDF Report by ID")
-        email = st.text_input("Recipient Email")
+        st.subheader("Email a PDF report by ID")
+        email = st.text_input("Recipient email")
         selected_id = st.number_input("Prediction ID", min_value=1, step=1)
 
-        if st.button("Generate PDF & Send Email"):
+        if st.button("Generate PDF and send email"):
             row = next((r for r in rows_as_dicts if r["id"] == selected_id), None)
             if row is None:
                 st.error(f"No prediction found with id = {selected_id}")
             else:
                 pdf_path = generate_pdf(row)
                 send_email(email, pdf_path, row)
-                st.success(f"✅ Email sent for prediction ID {selected_id}")
+                st.success(f"Email sent for prediction ID {selected_id}")
     else:
-        st.info("No prediction history available. Make some predictions first!")
+        st.info("No prediction history available yet. Make a few predictions first.")

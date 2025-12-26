@@ -30,9 +30,6 @@ st.set_page_config(page_title="Heart Failure Readmission", layout="wide")
 st.sidebar.title("Navigation")
 page = st.sidebar.radio("Go to", ["Predict", "History & Analytics"])
 
-# -------------------------------------------------------------------
-# Predict page
-# -------------------------------------------------------------------
 if page == "Predict":
     st.markdown(
         "<h2 style='text-align: center;'>Heart Failure Readmission Prediction</h2>",
@@ -129,16 +126,8 @@ if page == "Predict":
         prob = pipeline.predict_proba(input_df)[0][1]
         pred = int(prob >= threshold)
 
-        col1, col2 = st.columns([3, 1])
-        with col1:
-            st.metric("30‑day readmission risk", f"{prob:.1%}")
-        with col2:
-            risk_label_short = "Low" if pred == 0 else "High"
-            st.markdown(f"**{risk_label_short} risk**")
-
         full_label = "High readmission risk" if pred == 1 else "Low readmission risk"
         st.success(full_label)
-        st.info(f"Model confidence: **{prob:.3f}**")
 
         record = {
             "age": age,
@@ -155,9 +144,6 @@ if page == "Predict":
         }
         save_prediction(record)
 
-# -------------------------------------------------------------------
-# History & analytics page
-# -------------------------------------------------------------------
 else:
     st.title("Prediction history and analytics")
 

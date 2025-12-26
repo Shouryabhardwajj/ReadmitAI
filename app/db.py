@@ -1,11 +1,13 @@
 import os
 from sqlalchemy import create_engine, text
 from dotenv import load_dotenv
+from secrets_utils import get_secret
 
 load_dotenv()
 
-engine = create_engine(os.getenv("DATABASE_URL"))
+DATABASE_URL = get_secret("DATABASE_URL")
 
+engine = create_engine(DATABASE_URL)
 
 def init_db():
     with engine.connect() as conn:
@@ -27,7 +29,6 @@ def init_db():
         """))
         conn.commit()
 
-
 def save_prediction(data: dict):
     with engine.connect() as conn:
         conn.execute(text("""
@@ -43,7 +44,6 @@ def save_prediction(data: dict):
             );
         """), data)
         conn.commit()
-
 
 def fetch_predictions():
     with engine.connect() as conn:

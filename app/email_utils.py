@@ -1,15 +1,19 @@
-from datetime import datetime
 import smtplib
 import os
 from email.message import EmailMessage
 from dotenv import load_dotenv
+from datetime import datetime
+from secrets_utils import get_secret
 
 load_dotenv()
+
+EMAIL_FROM = get_secret("EMAIL_FROM")
+EMAIL_PASSWORD = get_secret("EMAIL_PASSWORD")
 
 def send_email(to_email, pdf_path, record):
     msg = EmailMessage()
     msg["Subject"] = "Heart Failure 30‑Day Readmission Risk Report"
-    msg["From"] = os.getenv("EMAIL_FROM")
+    msg["From"] = EMAIL_FROM
     msg["To"] = to_email
 
     patient_id = record.get("id", "N/A")
@@ -18,7 +22,7 @@ def send_email(to_email, pdf_path, record):
     if isinstance(raw_created, str):
         dt = datetime.fromisoformat(raw_created.split(".")[0])
     else:
-        dt = raw_created 
+        dt = raw_created
     created_indian = dt.strftime("%d-%m-%Y %H:%M") if dt else "N/A"
 
     prob = float(record.get("probability", 0.0))
@@ -61,5 +65,5 @@ def send_email(to_email, pdf_path, record):
         )
 
     with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
-        smtp.login(os.getenv("EMAIL_FROM"), os.getenv("EMAIL_PASSWORD"))
+        smtp.login(EMAIL_FROM, EMAIL_PASSWORD)
         smtp.send_message(msg)

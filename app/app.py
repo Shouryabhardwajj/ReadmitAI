@@ -1,7 +1,4 @@
 import os
-from datetime import datetime
-from zoneinfo import ZoneInfo
-
 import streamlit as st
 import numpy as np
 import pandas as pd
@@ -33,13 +30,16 @@ st.set_page_config(page_title="Heart Failure Readmission", layout="wide")
 st.sidebar.title("Navigation")
 page = st.sidebar.radio("Go to", ["Predict", "History & Analytics"])
 
+# -------------------------------------------------------------------
+# Predict page
+# -------------------------------------------------------------------
 if page == "Predict":
     st.markdown(
         "<h2 style='text-align: center;'>Heart Failure Readmission Prediction</h2>",
         unsafe_allow_html=True,
     )
     st.markdown(
-        "<p style='text-align: center; color: gray;'>Enter discharge-time clinical details to estimate 30‑day readmission risk.</p>",
+        "<p style='text-align: center; color: gray;'>Enter discharge-time clinical details to estimate 30-day readmission risk.</p>",
         unsafe_allow_html=True,
     )
 
@@ -70,7 +70,6 @@ if page == "Predict":
 
     if submit:
         input_df = pd.DataFrame({col: [np.nan] for col in EXPECTED_COLUMNS})
-        input_df = input_df.astype("object")
 
         input_mapping = {
             "age_at_admission": age,
@@ -130,8 +129,16 @@ if page == "Predict":
         prob = pipeline.predict_proba(input_df)[0][1]
         pred = int(prob >= threshold)
 
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            st.metric("30‑day readmission risk", f"{prob:.1%}")
+        with col2:
+            risk_label_short = "Low" if pred == 0 else "High"
+            st.markdown(f"**{risk_label_short} risk**")
+
         full_label = "High readmission risk" if pred == 1 else "Low readmission risk"
-        st.subheader(full_label)
+        st.success(full_label)
+        st.info(f"Model confidence: **{prob:.3f}**")
 
         record = {
             "age": age,
@@ -148,32 +155,17 @@ if page == "Predict":
         }
         save_prediction(record)
 
+# -------------------------------------------------------------------
+# History & analytics page
+# -------------------------------------------------------------------
 else:
     st.title("Prediction history and analytics")
 
     records = fetch_predictions()
     if records:
         rows_as_dicts = [dict(r._mapping) for r in records]
-
-        for row in rows_as_dicts:
-            ts = row.get("created_at")
-            if isinstance(ts, str):
-                dt_utc = datetime.fromisoformat(ts.split("+")[0])
-            elif isinstance(ts, datetime):
-                dt_utc = ts
-            else:
-                dt_utc = None
-
-            if dt_utc is not None:
-                if dt_utc.tzinfo is None:
-                    dt_utc = dt_utc.replace(tzinfo=ZoneInfo("UTC"))
-                dt_ist = dt_utc.astimezone(ZoneInfo("Asia/Kolkata"))
-                row["created_at_ist"] = dt_ist.strftime("%d-%m-%Y %H:%M:%S")
-            else:
-                row["created_at_ist"] = None
-
         df_history = pd.DataFrame(rows_as_dicts)
-        st.dataframe(df_history.tail(20), width="stretch")
+        st.dataframe(df_history.tail(20), use_container_width=True)
 
         st.subheader("Prediction distribution")
         preds = [int(row["prediction"]) for row in rows_as_dicts]
@@ -194,8 +186,7 @@ else:
             if row is None:
                 st.error(f"No prediction found with id = {selected_id}")
             else:
-                pdf_path = "prediction_report.pdf"
-                generate_pdf(row, pdf_path)
+                pdf_path = generate_pdf(row)
                 send_email(email, pdf_path, row)
                 st.success(f"Email sent for prediction ID {selected_id}")
     else:

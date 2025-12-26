@@ -1,7 +1,4 @@
 import os
-from datetime import datetime
-from zoneinfo import ZoneInfo
-
 import streamlit as st
 import numpy as np
 import pandas as pd
@@ -25,34 +22,7 @@ threshold = float(saved_threshold)
 if threshold > 0.2:
     threshold = 0.05
 
-EXPECTED_COLUMNS = list(pipeline.named_steps["preprocessing"].feature_names_in_)
-
-NUMERIC_FEATURES = [
-    "age_at_admission",
-    "heart_rate",
-    "systolic_bp",
-    "diastolic_bp",
-    "glucose",
-    "creatinine",
-    "troponin",
-    "los",
-    "respiratory_rate",
-    "spo2",
-    "bun",
-    "hemoglobin",
-    "temperature",
-    "hdl",
-    "log_los",
-]
-
-CATEGORICAL_FEATURES = [
-    "age_group",
-    "gender",
-    "ethnicity",
-    "insurance",
-    "admission_type",
-    "admission_location",
-]
+EXPECTED_COLUMNS = pipeline.named_steps["preprocessing"].feature_names_in_
 
 init_db()
 
@@ -98,7 +68,7 @@ if page == "Predict":
     if submit:
         input_df = pd.DataFrame({col: [np.nan] for col in EXPECTED_COLUMNS})
 
-        numeric_values = {
+        input_mapping = {
             "age_at_admission": age,
             "heart_rate": heart_rate,
             "systolic_bp": systolic_bp,
@@ -114,47 +84,44 @@ if page == "Predict":
             "temperature": temperature,
             "hdl": hdl,
         }
-        for col, value in numeric_values.items():
+
+        for col, value in input_mapping.items():
             if col in EXPECTED_COLUMNS:
-                input_df.loc[0, col] = float(value)
+                input_df.loc[0, col] = value
 
         if "log_los" in EXPECTED_COLUMNS:
-            input_df.loc[0, "log_los"] = float(np.log1p(los))
+            input_df.loc[0, "log_los"] = np.log1p(los)
 
         if "age_group" in EXPECTED_COLUMNS:
             if age <= 40:
-                age_group_val = "young"
+                input_df.loc[0, "age_group"] = "young"
             elif age <= 60:
-                age_group_val = "middle"
+                input_df.loc[0, "age_group"] = "middle"
             elif age <= 75:
-                age_group_val = "senior"
+                input_df.loc[0, "age_group"] = "senior"
             else:
-                age_group_val = "elderly"
-            input_df.loc[0, "age_group"] = age_group_val
+                input_df.loc[0, "age_group"] = "elderly"
 
         binary_defaults = ["aspirin", "statins", "beta_blockers", "diuretics"]
         for col in binary_defaults:
             if col in EXPECTED_COLUMNS:
-                input_df.loc[0, col] = 0.0
+                input_df.loc[0, col] = 0
 
-        cat_defaults = {
+        categorical_defaults = {
             "gender": "unknown",
             "ethnicity": "unknown",
             "insurance": "unknown",
             "admission_type": "UNKNOWN",
             "admission_location": "UNKNOWN",
         }
-        for col, val in cat_defaults.items():
+        for col, val in categorical_defaults.items():
             if col in EXPECTED_COLUMNS:
                 input_df.loc[0, col] = val
 
-        for col in NUMERIC_FEATURES:
-            if col in input_df.columns:
-                input_df[col] = pd.to_numeric(input_df[col], errors="coerce").fillna(0.0)
-
-        for col in CATEGORICAL_FEATURES:
-            if col in input_df.columns:
-                input_df[col] = input_df[col].astype("object").fillna("unknown")
+        num_cols = input_df.select_dtypes(include=[np.number]).columns
+        cat_cols = input_df.select_dtypes(exclude=[np.number]).columns
+        input_df[num_cols] = input_df[num_cols].fillna(0)
+        input_df[cat_cols] = input_df[cat_cols].fillna("unknown")
 
         prob = pipeline.predict_proba(input_df)[0][1]
         pred = int(prob >= threshold)
@@ -183,26 +150,8 @@ else:
     records = fetch_predictions()
     if records:
         rows_as_dicts = [dict(r._mapping) for r in records]
-
-        for row in rows_as_dicts:
-            ts = row.get("created_at")
-            if isinstance(ts, str):
-                dt_utc = datetime.fromisoformat(ts.split("+")[0])
-            elif isinstance(ts, datetime):
-                dt_utc = ts
-            else:
-                dt_utc = None
-
-            if dt_utc is not None:
-                if dt_utc.tzinfo is None:
-                    dt_utc = dt_utc.replace(tzinfo=ZoneInfo("UTC"))
-                dt_ist = dt_utc.astimezone(ZoneInfo("Asia/Kolkata"))
-                row["created_at_ist"] = dt_ist.strftime("%d-%m-%Y %H:%M:%S")
-            else:
-                row["created_at_ist"] = None
-
         df_history = pd.DataFrame(rows_as_dicts)
-        st.dataframe(df_history.tail(20), width="stretch")
+        st.dataframe(df_history.tail(20), use_container_width=True)
 
         st.subheader("Prediction distribution")
         preds = [int(row["prediction"]) for row in rows_as_dicts]

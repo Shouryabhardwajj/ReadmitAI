@@ -1,3 +1,4 @@
+import os
 import streamlit as st
 import numpy as np
 import pandas as pd
@@ -61,40 +62,32 @@ if page == "Predict":
             temperature = st.number_input("Temperature (°C)", 30.0, 45.0, value=37.0)
             hdl = st.number_input("HDL", 5.0, 150.0, value=45.0)
 
-        submit = st.form_submit_button("Predict")
+        email = st.text_input("Email for PDF Report (optional)")
+        submit = st.form_submit_button("🔮 Predict Risk", type="primary")
 
     if submit:
         input_df = pd.DataFrame({col: [np.nan] for col in EXPECTED_COLUMNS})
 
-        if "age_at_admission" in EXPECTED_COLUMNS:
-            input_df.loc[0, "age_at_admission"] = age
-        if "heart_rate" in EXPECTED_COLUMNS:
-            input_df.loc[0, "heart_rate"] = heart_rate
-        if "systolic_bp" in EXPECTED_COLUMNS:
-            input_df.loc[0, "systolic_bp"] = systolic_bp
-        if "diastolic_bp" in EXPECTED_COLUMNS:
-            input_df.loc[0, "diastolic_bp"] = diastolic_bp
-        if "glucose" in EXPECTED_COLUMNS:
-            input_df.loc[0, "glucose"] = glucose
-        if "creatinine" in EXPECTED_COLUMNS:
-            input_df.loc[0, "creatinine"] = creatinine
-        if "troponin" in EXPECTED_COLUMNS:
-            input_df.loc[0, "troponin"] = troponin
-        if "los" in EXPECTED_COLUMNS:
-            input_df.loc[0, "los"] = los
-        if "respiratory_rate" in EXPECTED_COLUMNS:
-            input_df.loc[0, "respiratory_rate"] = respiratory_rate
-        if "spo2" in EXPECTED_COLUMNS:
-            input_df.loc[0, "spo2"] = spo2
-
-        if "bun" in EXPECTED_COLUMNS:
-            input_df.loc[0, "bun"] = bun
-        if "hemoglobin" in EXPECTED_COLUMNS:
-            input_df.loc[0, "hemoglobin"] = hemoglobin
-        if "temperature" in EXPECTED_COLUMNS:
-            input_df.loc[0, "temperature"] = temperature
-        if "hdl" in EXPECTED_COLUMNS:
-            input_df.loc[0, "hdl"] = hdl
+        input_mapping = {
+            "age_at_admission": age,
+            "heart_rate": heart_rate,
+            "systolic_bp": systolic_bp,
+            "diastolic_bp": diastolic_bp,
+            "glucose": glucose,
+            "creatinine": creatinine,
+            "troponin": troponin,
+            "los": los,
+            "respiratory_rate": respiratory_rate,
+            "spo2": spo2,
+            "bun": bun,
+            "hemoglobin": hemoglobin,
+            "temperature": temperature,
+            "hdl": hdl
+        }
+        
+        for col, value in input_mapping.items():
+            if col in EXPECTED_COLUMNS:
+                input_df.loc[0, col] = value
 
         if "log_los" in EXPECTED_COLUMNS:
             input_df.loc[0, "log_los"] = np.log1p(los)
@@ -133,15 +126,18 @@ if page == "Predict":
         prob = pipeline.predict_proba(input_df)[0][1]
         pred = int(prob >= threshold)
 
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            st.metric("30-Day Readmission Risk", f"{prob:.1%}")
+        with col2:
+            risk_color = "🟢 Low" if pred == 0 else "🔴 High"
+            st.markdown(f"**{risk_color}**")
+
         risk_label = "High Readmission Risk" if pred == 1 else "Low Readmission Risk"
         st.success(risk_label)
+        st.info(f"Model confidence: **{prob:.3f}**")
 
-        if pred == 1:
-            st.write(f"Model confidence for high readmission risk: **{prob:.3f}**")
-        else:
-            st.write(f"Model confidence for low readmission risk: **{1 - prob:.3f}**")
-
-        save_prediction({
+        record = {
             "age": age,
             "heart_rate": heart_rate,
             "systolic_bp": systolic_bp,
@@ -150,30 +146,43 @@ if page == "Predict":
             "creatinine": creatinine,
             "troponin": troponin,
             "los": los,
+            "respiratory_rate": respiratory_rate,
             "prediction": pred,
-            "probability": float(prob),
-        })
+            "probability": float(prob)
+        }
+        save_prediction(record)
+
+        if email:
+            pdf_path = generate_pdf(record)
+            send_email(email, pdf_path, record)
+            st.success("✅ PDF Report emailed!")
 
 else:
-    st.title("Prediction History & Analytics")
+    st.title("📋 Prediction History & Analytics")
 
     records = fetch_predictions()
-
     if records:
-        st.dataframe(records)
+        df_history = pd.DataFrame(records, columns=[
+            'id', 'age', 'heart_rate', 'systolic_bp', 'diastolic_bp',
+            'glucose', 'creatinine', 'troponin', 'los', 'respiratory_rate',
+            'prediction', 'probability', 'created_at'
+        ])
+        
+        st.dataframe(df_history.tail(20), use_container_width=True)
 
         st.subheader("Prediction Distribution")
         preds = [int(r.prediction) for r in records]
         fig, ax = plt.subplots()
-        ax.hist(preds, bins=[-0.5, 0.5, 1.5], rwidth=0.8)
+        ax.hist(preds, bins=[-0.5, 0.5, 1.5], rwidth=0.8, color=['green', 'red'])
         ax.set_xticks([0, 1])
-        ax.set_xlabel("Prediction (0 = Low, 1 = High)")
+        ax.set_xticklabels(['Low Risk', 'High Risk'])
+        ax.set_xlabel("Prediction")
         ax.set_ylabel("Count")
         st.pyplot(fig)
 
-        st.subheader("Send PDF Report by ID")
+        st.subheader("📧 Send PDF Report by ID")
         email = st.text_input("Recipient Email")
-        selected_id = st.number_input("Prediction ID to send", min_value=1, step=1)
+        selected_id = st.number_input("Prediction ID", min_value=1, step=1)
 
         if st.button("Generate PDF & Send Email"):
             row = next((r for r in records if r.id == selected_id), None)
@@ -181,9 +190,9 @@ else:
                 st.error(f"No prediction found with id = {selected_id}")
             else:
                 data_dict = dict(row._mapping)
-                generate_pdf(data_dict, "prediction_report.pdf")
-                send_email(email, "prediction_report.pdf", data_dict)
-                st.success(f"Email sent successfully for prediction id {selected_id}")
+                pdf_path = generate_pdf(data_dict)
+                send_email(email, pdf_path, data_dict)
+                st.success(f"✅ Email sent for prediction ID {selected_id}")
 
     else:
-        st.info("No prediction history available.")
+        st.info("No prediction history available. Make some predictions first!")

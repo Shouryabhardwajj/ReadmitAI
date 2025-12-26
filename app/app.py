@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 from db import init_db, save_prediction, fetch_predictions
 from pdf_utils import generate_pdf
 from email_utils import send_email
+from matplotlib.ticker import MaxNLocator
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MODELS_DIR = os.path.join(BASE_DIR, "..", "models")
@@ -155,10 +156,12 @@ else:
 
         st.subheader("Prediction distribution")
         preds = [int(row["prediction"]) for row in rows_as_dicts]
-        fig, ax = plt.subplots()
+        fig, ax = plt.subplots(figsize=(6, 4))
+        fig.subplots_adjust(left=0.15, right=0.95, bottom=0.15, top=0.9)
         ax.hist(preds, bins=[-0.5, 0.5, 1.5], rwidth=0.8, color="steelblue")
         ax.set_xticks([0, 1])
         ax.set_xticklabels(["Low risk", "High risk"])
+        ax.yaxis.set_major_locator(MaxNLocator(integer=True))
         ax.set_xlabel("Prediction")
         ax.set_ylabel("Count")
         st.pyplot(fig)

@@ -71,7 +71,6 @@ if page == "Predict":
 
     if submit:
         input_df = pd.DataFrame({col: [np.nan] for col in EXPECTED_COLUMNS})
-        input_df = input_df.astype("object")
 
         input_mapping = {
             "age_at_admission": age,
@@ -99,18 +98,19 @@ if page == "Predict":
 
         if "age_group" in EXPECTED_COLUMNS:
             if age <= 40:
-                input_df.loc[0, "age_group"] = "young"
+                age_group_val = "young"
             elif age <= 60:
-                input_df.loc[0, "age_group"] = "middle"
+                age_group_val = "middle"
             elif age <= 75:
-                input_df.loc[0, "age_group"] = "senior"
+                age_group_val = "senior"
             else:
-                input_df.loc[0, "age_group"] = "elderly"
+                age_group_val = "elderly"
+            input_df.loc[0, "age_group"] = age_group_val
 
         binary_defaults = ["aspirin", "statins", "beta_blockers", "diuretics"]
         for col in binary_defaults:
             if col in EXPECTED_COLUMNS:
-                input_df.loc[0, col] = 0
+                input_df.loc[0, col] = 0.0
 
         categorical_defaults = {
             "gender": "unknown",
@@ -123,10 +123,36 @@ if page == "Predict":
             if col in EXPECTED_COLUMNS:
                 input_df.loc[0, col] = val
 
-        num_cols = input_df.select_dtypes(include=[np.number]).columns
-        cat_cols = input_df.select_dtypes(exclude=[np.number]).columns
-        input_df[num_cols] = input_df[num_cols].fillna(0)
-        input_df[cat_cols] = input_df[cat_cols].fillna("unknown")
+        numeric_feature_like = [
+            "age_at_admission",
+            "heart_rate",
+            "systolic_bp",
+            "diastolic_bp",
+            "glucose",
+            "creatinine",
+            "troponin",
+            "los",
+            "respiratory_rate",
+            "spo2",
+            "bun",
+            "hemoglobin",
+            "temperature",
+            "hdl",
+            "log_los",
+        ]
+
+        num_cols = [c for c in input_df.columns if c in numeric_feature_like]
+        cat_cols = [c for c in input_df.columns if c not in num_cols]
+
+        if num_cols:
+            input_df[num_cols] = input_df[num_cols].astype(float).fillna(0.0)
+        if cat_cols:
+            input_df[cat_cols] = (
+                input_df[cat_cols]
+                .astype("object")
+                .fillna("unknown")
+                .infer_objects(copy=False)
+            )
 
         prob = pipeline.predict_proba(input_df)[0][1]
         pred = int(prob >= threshold)

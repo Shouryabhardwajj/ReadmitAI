@@ -36,7 +36,7 @@ if page == "Predict":
         unsafe_allow_html=True,
     )
     st.markdown(
-        "<p style='text-align: center; color: gray;'>Enter discharge-time clinical details to estimate 30-day readmission risk.</p>",
+        "<p style='text-align: center; color: gray;'>Enter discharge-time clinical details to estimate 30‑day readmission risk.</p>",
         unsafe_allow_html=True,
     )
 
@@ -126,16 +126,8 @@ if page == "Predict":
         prob = pipeline.predict_proba(input_df)[0][1]
         pred = int(prob >= threshold)
 
-        col1, col2 = st.columns([3, 1])
-        with col1:
-            st.metric("30‑day readmission risk", f"{prob:.1%}")
-        with col2:
-            risk_label_short = "Low" if pred == 0 else "High"
-            st.markdown(f"**{risk_label_short} risk**")
-
         full_label = "High readmission risk" if pred == 1 else "Low readmission risk"
-        st.success(full_label)
-        st.info(f"Model confidence: **{prob:.3f}**")
+        st.subheader(full_label)
 
         record = {
             "age": age,
@@ -180,7 +172,8 @@ else:
             if row is None:
                 st.error(f"No prediction found with id = {selected_id}")
             else:
-                pdf_path = generate_pdf(row)
+                pdf_path = "prediction_report.pdf"
+                generate_pdf(row, pdf_path)
                 send_email(email, pdf_path, row)
                 st.success(f"Email sent for prediction ID {selected_id}")
     else:

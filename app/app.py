@@ -82,9 +82,9 @@ if page == "Predict":
             "bun": bun,
             "hemoglobin": hemoglobin,
             "temperature": temperature,
-            "hdl": hdl
+            "hdl": hdl,
         }
-        
+
         for col, value in input_mapping.items():
             if col in EXPECTED_COLUMNS:
                 input_df.loc[0, col] = value
@@ -148,7 +148,7 @@ if page == "Predict":
             "los": los,
             "respiratory_rate": respiratory_rate,
             "prediction": pred,
-            "probability": float(prob)
+            "probability": float(prob),
         }
         save_prediction(record)
 
@@ -162,20 +162,16 @@ else:
 
     records = fetch_predictions()
     if records:
-        df_history = pd.DataFrame(records, columns=[
-            'id', 'age', 'heart_rate', 'systolic_bp', 'diastolic_bp',
-            'glucose', 'creatinine', 'troponin', 'los', 'respiratory_rate',
-            'prediction', 'probability', 'created_at'
-        ])
-        
+        rows_as_dicts = [dict(r._mapping) for r in records]
+        df_history = pd.DataFrame(rows_as_dicts)
         st.dataframe(df_history.tail(20), use_container_width=True)
 
         st.subheader("Prediction Distribution")
-        preds = [int(r.prediction) for r in records]
+        preds = [int(row["prediction"]) for row in rows_as_dicts]
         fig, ax = plt.subplots()
-        ax.hist(preds, bins=[-0.5, 0.5, 1.5], rwidth=0.8, color=['green', 'red'])
+        ax.hist(preds, bins=[-0.5, 0.5, 1.5], rwidth=0.8, color=["green", "red"])
         ax.set_xticks([0, 1])
-        ax.set_xticklabels(['Low Risk', 'High Risk'])
+        ax.set_xticklabels(["Low Risk", "High Risk"])
         ax.set_xlabel("Prediction")
         ax.set_ylabel("Count")
         st.pyplot(fig)
@@ -185,14 +181,12 @@ else:
         selected_id = st.number_input("Prediction ID", min_value=1, step=1)
 
         if st.button("Generate PDF & Send Email"):
-            row = next((r for r in records if r.id == selected_id), None)
+            row = next((r for r in rows_as_dicts if r["id"] == selected_id), None)
             if row is None:
                 st.error(f"No prediction found with id = {selected_id}")
             else:
-                data_dict = dict(row._mapping)
-                pdf_path = generate_pdf(data_dict)
-                send_email(email, pdf_path, data_dict)
+                pdf_path = generate_pdf(row)
+                send_email(email, pdf_path, row)
                 st.success(f"✅ Email sent for prediction ID {selected_id}")
-
     else:
         st.info("No prediction history available. Make some predictions first!")

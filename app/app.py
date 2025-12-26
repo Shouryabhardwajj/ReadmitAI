@@ -1,4 +1,7 @@
 import os
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
 import streamlit as st
 import numpy as np
 import pandas as pd
@@ -30,6 +33,7 @@ st.set_page_config(page_title="Heart Failure Readmission", layout="wide")
 st.sidebar.title("Navigation")
 page = st.sidebar.radio("Go to", ["Predict", "History & Analytics"])
 
+# --------------------------- Predict ---------------------------
 if page == "Predict":
     st.markdown(
         "<h2 style='text-align: center;'>Heart Failure Readmission Prediction</h2>",
@@ -67,6 +71,7 @@ if page == "Predict":
 
     if submit:
         input_df = pd.DataFrame({col: [np.nan] for col in EXPECTED_COLUMNS})
+        input_df = input_df.astype("object")
 
         input_mapping = {
             "age_at_admission": age,
@@ -144,14 +149,33 @@ if page == "Predict":
         }
         save_prediction(record)
 
+# ---------------------- History & analytics --------------------
 else:
     st.title("Prediction history and analytics")
 
     records = fetch_predictions()
     if records:
         rows_as_dicts = [dict(r._mapping) for r in records]
+
+        for row in rows_as_dicts:
+            ts = row.get("created_at")
+            if isinstance(ts, str):
+                dt_utc = datetime.fromisoformat(ts.split("+")[0])
+            elif isinstance(ts, datetime):
+                dt_utc = ts
+            else:
+                dt_utc = None
+
+            if dt_utc is not None:
+                if dt_utc.tzinfo is None:
+                    dt_utc = dt_utc.replace(tzinfo=ZoneInfo("UTC"))
+                dt_ist = dt_utc.astimezone(ZoneInfo("Asia/Kolkata"))
+                row["created_at_ist"] = dt_ist.strftime("%d-%m-%Y %H:%M:%S")
+            else:
+                row["created_at_ist"] = None
+
         df_history = pd.DataFrame(rows_as_dicts)
-        st.dataframe(df_history.tail(20), use_container_width=True)
+        st.dataframe(df_history.tail(20), width="stretch")
 
         st.subheader("Prediction distribution")
         preds = [int(row["prediction"]) for row in rows_as_dicts]
